@@ -4,7 +4,7 @@ export interface Transaction { update$: Subject<TransactionContext>,  fn: (conte
 export type TransactionFunction = (context?: TransactionContext) => TransactionContext;
 export type TransactionContext = any
 export interface TransactorConfig {
-  transactionHooks: StoreHooks,
+  transactionHooks: TransactionHooks,
   debugHooks?: DebugHooks
 }
 
@@ -15,7 +15,7 @@ export interface DebugHooks {
   finalized?: (context: TransactionContext) => TransactionContext
 }
 
-export interface StoreHooks {
+export interface TransactionHooks {
   initialize?: (context: TransactionContext) => TransactionContext,
   finalize?: (context: TransactionContext) => TransactionContext,
   error?: (err: Error) => any
