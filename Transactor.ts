@@ -1,10 +1,12 @@
 import { Subject } from '@gelliott181/reactionjs';
+import { debug } from 'console';
 
 export interface Transaction { update$: Subject<TransactionContext>,  fn: (context?: TransactionContext) => TransactionContext, contextFactory?: () => TransactionContext };
 export type TransactionFunction = (context?: TransactionContext) => TransactionContext;
 export type TransactionContext = any
+export type TransactionResult<T> = T
 export interface TransactorConfig {
-  transactionHooks: TransactionHooks,
+  transactionHooks?: TransactionHooks,
   debugHooks?: DebugHooks
 }
 
@@ -16,8 +18,8 @@ export interface DebugHooks {
 }
 
 export interface TransactionHooks {
-  initialize?: (context: TransactionContext) => TransactionContext,
-  finalize?: (context: TransactionContext) => TransactionContext,
+  initialize?: () => TransactionContext,
+  finalize?: (context: TransactionContext) => TransactionResult<any>,
   error?: (err: Error) => any
 }
 
@@ -25,16 +27,19 @@ export class Transactor {
   private transactionsInProgress = 0;
   private transactionQueue: Transaction[] = [];
 
-  constructor(private config: TransactorConfig) { }
+  constructor(private config: TransactorConfig = { }) { }
 
-  public transaction(transactionFn: TransactionFunction, contextFactory?: () => TransactionContext): Subject<TransactionContext> {
+  public transaction(transactionFn: TransactionFunction) {
     const update$ = new Subject<TransactionContext>();
     const transactionsInProgress = this.transactionsInProgress;
     const transaction: Transaction = { 
       update$,
-      contextFactory,
-      fn: (context?: TransactionContext): TransactionContext => {
-        return transactionFn(context);
+      fn: async ({ initialize, finalize }): Promise<TransactionContext> => {
+        const context = await initialize?.();
+        const transactedContext = await transactionFn(context);
+        const finalizedContext = await finalize?.(transactedContext);
+
+        return finalizedContext ?? transactedContext ?? context;
       }
     };
 
@@ -51,37 +56,34 @@ export class Transactor {
   private async handleTransaction() {
     const transactionsInProgress = this.transactionsInProgress;
     if (transactionsInProgress > 0 && this.transactionQueue.length > 0) {
-      const { contextFactory, fn, update$ } = this.transactionQueue.pop()!;
+      const { fn, update$ } = this.transactionQueue.pop()!;
 
-      const { initialize, finalize, error } = this.config.transactionHooks ?? { };
-      
+      const transactionHooks = this.config.transactionHooks ?? { };
+      const initialize = () => { 
+        const context = transactionHooks.initialize?.();
+        debugHook(context, this.config.debugHooks?.initialized);
+        return context;
+      };
+
+      const finalize = (context: TransactionContext) => {
+        const finalizedContext = transactionHooks.finalize?.(context) ?? context;
+        debugHook(finalizedContext, this.config.debugHooks?.finalized);
+      };
+
       try {
-        const debugHooks = this.config.debugHooks ?? { };
-
-        const context = contextFactory?.();
-
-        debugHook(context, debugHooks.before);
-        
-        const initializedContext = initialize?.(context) ?? context;
-        
-        debugHook(initializedContext, debugHooks.initialized);
-
-        const transactedContext = await fn(initializedContext);
-
-        debugHook(transactedContext, debugHooks.after);
-
-        const finalizedContext = finalize?.(context) ?? context;
-
-        debugHook(finalizedContext, debugHooks.finalized);
-
+        const transactionResult = await fn({ initialize, finalize });
+        update$.next(transactionResult);
       } catch (err: any) {
         if (err instanceof Error) {
-          error?.(err);
+          update$.error(err);
+          transactionHooks.error?.(err);
         }
 
-        error?.(new Error(err));
+        update$.error(new Error(err));
+        transactionHooks.error?.(new Error(err));
       }
 
+      update$.complete();
       this.handleTransaction();
     }
   }  
@@ -89,6 +91,5 @@ export class Transactor {
 
 const debugHook = (context: TransactionContext, hook?: (context: TransactionContext) => TransactionContext, ) => {
   if (!hook) { return; }
-  const contextClone = JSON.parse(JSON.stringify(context));
-  hook(contextClone);
+  hook(context);
 }

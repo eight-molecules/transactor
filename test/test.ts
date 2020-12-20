@@ -1,9 +1,12 @@
 import { ValueStore } from '../ValueStore';
 
+type ShouldFn = (Promise<void> | void)
 let successes = 0;
 let total = 0;
 
-export const test = async (msg: string, should: () => Promise<void> | void = async () => {}, { timeout = 500 } = { }) => {
+const isAsync = (obj: any) => obj?.constructor.name === "AsyncFunction";
+const xtest = (msg: any, should: any) => { };
+const test = async (msg: string, should: () => ShouldFn = async () => {}, { timeout = 500 } = { }) => {
   total++;
 
   try {
@@ -43,7 +46,7 @@ test('ValueStore ', async () => {
       },
     });
 
-    store.transaction(({ set, get }) => {
+    store.transaction(({ set }) => {
       set(1);
       set(2);
       set(3);
@@ -59,6 +62,7 @@ test('ValueStore ', async () => {
     store.transaction(({ set }) => {
       set({ z });
       set({ x, y, z });
-    })
+    });
+
   });
 });
