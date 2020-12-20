@@ -75,6 +75,10 @@ export class Transactor {
         debugHook(finalizedContext, debugHooks.finalized);
 
       } catch (err: any) {
+        if (err instanceof Error) {
+          error?.(err);
+        }
+
         error?.(new Error(err));
       }
 
@@ -85,5 +89,6 @@ export class Transactor {
 
 const debugHook = (context: TransactionContext, hook?: (context: TransactionContext) => TransactionContext, ) => {
   if (!hook) { return; }
-  hook(context);
+  const contextClone = JSON.parse(JSON.stringify(context));
+  hook(contextClone);
 }

@@ -26,7 +26,7 @@ test('ValueStore ', async () => {
     store.updates().subscribe({
       next: (v: any) => {
         if (emissions === 0 && v !== undefined) reject('Initial value was not undefined!');
-        if (emissions === 1 && v !== 3) reject(`Wrong value for emission. ( emissions: ${emissions}, value: ${v} )`);
+        if (emissions === 1 && v !== 3) reject(`Wrong value for emission. ( emissions: ${emissions}, value: ${JSON.stringify(v)} )`);
 
         if (emissions === 2) {
           const { x, y } = v;
@@ -40,10 +40,10 @@ test('ValueStore ', async () => {
 
         emissions++;
         if (emissions === 4) resolve();
-      }
+      },
     });
 
-    store.transaction(({ set }) => {
+    store.transaction(({ set, get }) => {
       set(1);
       set(2);
       set(3);

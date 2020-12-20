@@ -1,56 +1,58 @@
-import { Observable, ValueSubject } from "@gelliott181/reactionjs";
+import { map, Observable, pipe, ValueSubject } from "@gelliott181/reactionjs";
 import { Transactor, TransactorConfig, TransactionContext } from "./Transactor";
 
 export interface ValueStoreConfig extends TransactorConfig { }
 export interface ValueTransactionContext extends TransactionContext { 
-  actions: { set: (value: any) => void },
+  actions: { set: (value: any) => void, get: () => any },
   readonly value: any
 }
 
 export interface ValueTransactionActions {
   set: (value: any) => any,
+  get: () => any
 }
 
 export class ValueStore  {
   transactor: Transactor;
-  _value: any;
-
-  set value(value) {
-    this.value = value;
-  }
-
   get value() {
-    return this._value;
+    return this.container.value;
   }
 
-  private update$: ValueSubject<any> = new ValueSubject<any>();
+  private container: ValueSubject<any> = new ValueSubject<any>();
 
-  constructor(userConfig?: Partial<TransactorConfig>) {
+  constructor(userConfig?: Partial<{ transactorConfig: Partial<TransactorConfig> }>) {
     this.transactor = new Transactor({
+      ...userConfig?.transactorConfig,
       transactionHooks: {
+        ...userConfig?.transactorConfig?.transactionHooks,
         finalize: (context: any) => {
-          this.update$.next(context.value);
+          userConfig?.transactorConfig?.transactionHooks?.finalize?.(context);
+          this.container.next(context.value);
           return context;
+        },
+        error: (err: Error) => { 
+          userConfig?.transactorConfig?.transactionHooks?.error?.(err);
+          this.container.error(err); 
         }
       },
-      ...userConfig
     });
 
   }
 
   updates() {
-    return this.update$ as Observable<any>;
+    return this.container as Observable<any>;
   }
 
   transaction(transactionFn: (actions: ValueTransactionActions) => void) {
     const contextFactory = (): ValueTransactionContext => {
-      let _value: any = this._value;
+      const container: any = { value: this.container.value };
       return {
         actions: {
-          set: (value: any) => _value = value
+          set: (value: any) => container.value = value,
+          get: () => container.value
         },
-        get value() { return _value; }
-      };
+        get value() { return container.value; }
+      }
     };
 
     this.transactor.transaction((context?: ValueTransactionContext) => {
