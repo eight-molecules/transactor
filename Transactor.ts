@@ -1,7 +1,6 @@
 import { Subject } from '@gelliott181/reactionjs';
-import { debug } from 'console';
 
-export interface Transaction { update$: Subject<TransactionContext>,  fn: (context?: TransactionContext) => TransactionContext, contextFactory?: () => TransactionContext };
+export interface Transaction { fn: (context?: TransactionContext) => TransactionContext };
 export type TransactionFunction = (context?: TransactionContext) => TransactionContext;
 export type TransactionContext = any
 export type TransactionResult<T> = T
@@ -30,16 +29,12 @@ export class Transactor {
   constructor(private config: TransactorConfig = { }) { }
 
   public transaction(transactionFn: TransactionFunction) {
-    const update$ = new Subject<TransactionContext>();
     const transactionsInProgress = this.transactionsInProgress;
     const transaction: Transaction = { 
-      update$,
       fn: async ({ initialize, finalize }): Promise<TransactionContext> => {
         const context = await initialize?.();
         const transactedContext = await transactionFn(context);
-        const finalizedContext = await finalize?.(transactedContext);
-
-        return finalizedContext ?? transactedContext ?? context;
+        await finalize?.(transactedContext);
       }
     };
 
@@ -49,14 +44,12 @@ export class Transactor {
     if (transactionsInProgress >= 0 && this.transactionQueue.length > 0) {
       this.handleTransaction();
     }
-
-    return update$;
   }
 
   private async handleTransaction() {
     const transactionsInProgress = this.transactionsInProgress;
     if (transactionsInProgress > 0 && this.transactionQueue.length > 0) {
-      const { fn, update$ } = this.transactionQueue.pop()!;
+      const { fn } = this.transactionQueue.pop()!;
 
       const transactionHooks = this.config.transactionHooks ?? { };
       const initialize = () => { 
@@ -71,19 +64,15 @@ export class Transactor {
       };
 
       try {
-        const transactionResult = await fn({ initialize, finalize });
-        update$.next(transactionResult);
+        await fn({ initialize, finalize });
       } catch (err: any) {
         if (err instanceof Error) {
-          update$.error(err);
           transactionHooks.error?.(err);
         }
 
-        update$.error(new Error(err));
         transactionHooks.error?.(new Error(err));
       }
 
-      update$.complete();
       this.handleTransaction();
     }
   }  

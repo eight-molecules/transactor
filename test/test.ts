@@ -1,4 +1,5 @@
 import { ValueStore } from '../ValueStore';
+import { ArrayStore } from '../ArrayStore';
 
 type ShouldFn = (Promise<void> | void)
 let successes = 0;
@@ -64,5 +65,34 @@ test('ValueStore ', async () => {
       set({ x, y, z });
     });
 
+  });
+});
+
+test('ArrayStore ', async () => {
+  return new Promise((resolve, reject) => {
+    const store: ArrayStore<any[]> = new ArrayStore<any[]>({
+      initialized: (v) => console.log('initialized', v),
+      finalized: (v) => console.log('finalized', v)
+    });
+
+    let emissions = 0;
+    store.updates().subscribe({
+      next: (v: any[]) => {
+        if (emissions === 0) {
+          if (!Array.isArray(v) || v.length > 0) reject('Initial value was not undefined!')
+        }
+
+        if (emissions === 1) {
+          if (!Array.isArray(v) || v.length != 1 || v[0] !== 1) reject(`Wrong value for emission. ( emissions: ${emissions}, value: ${JSON.stringify(v)} )`);
+        }
+
+        emissions++;
+        if (emissions === 2) resolve();
+      },
+    });
+
+    store.transaction(() => {
+      return [ 1 ];
+    });
   });
 });

@@ -25,7 +25,16 @@ export class ValueStore {
     this.transactor = new Transactor({
       debugHooks,
       transactionHooks: {
-        initialize: () => this.createContext(),
+        initialize: () => {
+          const container: any = { value: this.container.value };
+          return {
+            actions: {
+              set: (value: any) => container.value = value,
+              get: () => container.value
+            },
+            get value() { return container.value; }
+          }
+        },
         finalize: (context: any) => {
           this.container.next(context.value);
           return context;
@@ -35,7 +44,6 @@ export class ValueStore {
         }
       },
     });
-
   }
 
   updates() {
@@ -48,15 +56,4 @@ export class ValueStore {
       return context;
     });
   }
-
-  createContext() {
-    const container: any = { value: this.container.value };
-    return {
-      actions: {
-        set: (value: any) => container.value = value,
-        get: () => container.value
-      },
-      get value() { return container.value; }
-    }
-  };
 }
