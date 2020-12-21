@@ -39,9 +39,7 @@ export class Transactor {
     this.transactionQueue.push(transaction);
     this.transactionsInProgress++;
 
-    if (transactionsInProgress >= 0 && this.transactionQueue.length > 0) {
-      this.handleTransaction();
-    }
+    this.handleTransaction();
   }
 
   private async handleTransaction() {
