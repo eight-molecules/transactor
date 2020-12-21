@@ -21,13 +21,11 @@ export interface TransactionHooks {
 }
 
 export class Transactor {
-  private transactionsInProgress = 0;
   private transactionQueue: Transaction[] = [];
 
   constructor(private config: TransactorConfig = { }) { }
 
   public transaction(transactionFn: TransactionFunction) {
-    const transactionsInProgress = this.transactionsInProgress;
     const transaction: Transaction = { 
       fn: async ({ initialize, finalize }): Promise<TransactionContext> => {
         const context = await initialize?.();
@@ -37,40 +35,37 @@ export class Transactor {
     };
 
     this.transactionQueue.push(transaction);
-    this.transactionsInProgress++;
-
     this.handleTransaction();
   }
 
   private async handleTransaction() {
-    const transactionsInProgress = this.transactionsInProgress;
-    if (transactionsInProgress > 0 && this.transactionQueue.length > 0) {
-      const { fn } = this.transactionQueue.pop()!;
+    if (this.transactionQueue.length <= 0) return;
+    
+    const { fn } = this.transactionQueue.pop()!;
 
-      const transactionHooks = this.config.transactionHooks ?? { };
-      const initialize = () => { 
-        const context = transactionHooks.initialize?.();
-        debugHook(context, this.config.debugHooks?.initialized);
-        return context;
-      };
+    const transactionHooks = this.config.transactionHooks ?? { };
+    const initialize = () => { 
+      const context = transactionHooks.initialize?.();
+      debugHook(context, this.config.debugHooks?.initialized);
+      return context;
+    };
 
-      const finalize = (context: TransactionContext) => {
-        const finalizedContext = transactionHooks.finalize?.(context) ?? context;
-        debugHook(finalizedContext, this.config.debugHooks?.finalized);
-      };
+    const finalize = (context: TransactionContext) => {
+      const finalizedContext = transactionHooks.finalize?.(context) ?? context;
+      debugHook(finalizedContext, this.config.debugHooks?.finalized);
+    };
 
-      try {
-        await fn({ initialize, finalize });
-      } catch (err: any) {
-        if (err instanceof Error) {
-          transactionHooks.error?.(err);
-        }
-
-        transactionHooks.error?.(new Error(err));
+    try {
+      await fn({ initialize, finalize });
+    } catch (err: any) {
+      if (err instanceof Error) {
+        transactionHooks.error?.(err);
       }
 
-      this.handleTransaction();
+      transactionHooks.error?.(new Error(err));
     }
+
+    this.handleTransaction();
   }  
 }
 
