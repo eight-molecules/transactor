@@ -1,5 +1,3 @@
-import { Subject } from '@gelliott181/reactionjs';
-
 export interface Transaction { fn: (context?: TransactionContext) => TransactionContext };
 export type TransactionFunction = (context?: TransactionContext) => TransactionContext;
 export type TransactionContext = any
