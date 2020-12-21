@@ -86,13 +86,16 @@ test('ArrayStore ', async () => {
           if (!Array.isArray(v) || v.length != 1 || v[0] !== 1) reject(`Wrong value for emission. ( emissions: ${emissions}, value: ${JSON.stringify(v)} )`);
         }
 
+        if (emissions === 2) {
+          if (!Array.isArray(v) || v.length != 2 || (v[0] !== 1 && v[1] !== 2)) reject(`Wrong value for emission. ( emissions: ${emissions}, value: ${JSON.stringify(v)} )`);
+        }
+
         emissions++;
-        if (emissions === 2) resolve();
+        if (emissions === 3) resolve();
       },
     });
 
-    store.transaction(() => {
-      return [ 1 ];
-    });
+    store.transaction(() => [ 1 ]);
+    store.transaction((array: any[]) => [ ...array, 2 ]);
   });
 });
